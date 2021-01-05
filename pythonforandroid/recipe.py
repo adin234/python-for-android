@@ -220,11 +220,13 @@ class Recipe(with_metaclass(RecipeMeta)):
         elif parsed_url.scheme in ('git', 'git+file', 'git+ssh', 'git+http', 'git+https'):
             if isdir(target):
                 with current_directory(target):
-                    shprint(sh.git, 'fetch', '--tags')
+                    shprint(sh.git, 'fetch', '--tags', '--recurse-submodules')
                     if self.version:
                         shprint(sh.git, 'checkout', self.version)
-                    shprint(sh.git, 'pull')
-                    shprint(sh.git, 'pull', '--recurse-submodules')
+                    branch = sh.git('branch', '--show-current')
+                    if branch:
+                        shprint(sh.git, 'pull')
+                        shprint(sh.git, 'pull', '--recurse-submodules')
                     shprint(sh.git, 'submodule', 'update', '--recursive')
             else:
                 if url.startswith('git+'):
@@ -775,9 +777,7 @@ class BootstrapNDKRecipe(Recipe):
         env['PYTHON_INCLUDE_ROOT'] = self.ctx.python_recipe.include_root(arch.arch)
         env['PYTHON_LINK_ROOT'] = self.ctx.python_recipe.link_root(arch.arch)
         env['EXTRA_LDLIBS'] = ' -lpython{}'.format(
-            self.ctx.python_recipe.major_minor_version_string)
-        if 'python3' in self.ctx.python_recipe.name:
-            env['EXTRA_LDLIBS'] += 'm'
+            self.ctx.python_recipe.link_version)
         return env
 
 
@@ -914,16 +914,13 @@ class PythonRecipe(Recipe):
         env['LANG'] = "en_GB.UTF-8"
 
         if not self.call_hostpython_via_targetpython:
-            python_name = self.ctx.python_recipe.name
             env['CFLAGS'] += ' -I{}'.format(
                 self.ctx.python_recipe.include_root(arch.arch)
             )
             env['LDFLAGS'] += ' -L{} -lpython{}'.format(
                 self.ctx.python_recipe.link_root(arch.arch),
-                self.ctx.python_recipe.major_minor_version_string,
+                self.ctx.python_recipe.link_version,
             )
-            if python_name == 'python3':
-                env['LDFLAGS'] += 'm'
 
             hppath = []
             hppath.append(join(dirname(self.hostpython_location), 'Lib'))

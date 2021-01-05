@@ -67,14 +67,16 @@ class Python3Recipe(TargetPythonRecipe):
         ('patches/py3.7.1_fix-ctypes-util-find-library.patch', version_starts_with("3.7")),
         ('patches/py3.7.1_fix-zlib-version.patch', version_starts_with("3.7")),
 
-        # Python 3.8.1
-        ('patches/py3.8.1.patch', version_starts_with("3.8"))
+        # Python 3.8.1 & 3.9.X
+        ('patches/py3.8.1.patch', version_starts_with("3.8")),
+        ('patches/py3.8.1.patch', version_starts_with("3.9"))
     ]
 
     if sh.which('lld') is not None:
         patches = patches + [
             ("patches/py3.7.1_fix_cortex_a8.patch", version_starts_with("3.7")),
-            ("patches/py3.8.1_fix_cortex_a8.patch", version_starts_with("3.8"))
+            ("patches/py3.8.1_fix_cortex_a8.patch", version_starts_with("3.8")),
+            ("patches/py3.8.1_fix_cortex_a8.patch", version_starts_with("3.9"))
         ]
 
     depends = ['hostpython3', 'sqlite3', 'openssl', 'libffi']
@@ -155,10 +157,22 @@ class Python3Recipe(TargetPythonRecipe):
     @property
     def _libpython(self):
         '''return the python's library name (with extension)'''
-        py_version = self.major_minor_version_string
-        if self.major_minor_version_string[0] == '3':
-            py_version += 'm'
-        return 'libpython{version}.so'.format(version=py_version)
+        return 'libpython{link_version}.so'.format(
+            link_version=self.link_version
+        )
+
+    @property
+    def link_version(self):
+        '''return the python's library link version e.g. 3.7m, 3.8'''
+        major, minor = self.major_minor_version_string.split('.')
+        flags = ''
+        if major == '3' and int(minor) < 8:
+            flags += 'm'
+        return '{major}.{minor}{flags}'.format(
+            major=major,
+            minor=minor,
+            flags=flags
+        )
 
     def include_root(self, arch_name):
         return join(self.get_build_dir(arch_name), 'Include')
@@ -393,9 +407,7 @@ class Python3Recipe(TargetPythonRecipe):
         # copy the python .so files into place
         python_build_dir = join(self.get_build_dir(arch.arch),
                                 'android-build')
-        python_lib_name = 'libpython' + self.major_minor_version_string
-        if self.major_minor_version_string[0] == '3':
-            python_lib_name += 'm'
+        python_lib_name = 'libpython' + self.link_version
         shprint(
             sh.cp,
             join(python_build_dir, python_lib_name + '.so'),
